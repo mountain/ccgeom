@@ -161,13 +161,6 @@ export fn surface(n_vertices: i64, n_edges: i64, n_faces: i64) u64 {
     return registry.items.len - 1;
 }
 
-export fn vertice(sid: i64, idx: i64, x: f64, y: f64, z: f64) u64 {
-    var s = SimpleSurface.init(allocator, n_vertices, n_edges, n_faces);
-    var uc = SimpleUniversalCovering.init(allocator, s);
-    registry.append(uc) catch {};
-    return registry.items.len - 1;
-}
-
 test "mesh construction" {
     testing.except(surface(10, 10, 10) == 0);
     testing.except(surface(10, 10, 10) == 1);
