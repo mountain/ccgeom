@@ -37,9 +37,6 @@ const Face = struct {
     halfedge_1st: *HalfEdge,
 };
 
-const Position = zmath.Vec; // (x, y, z, 0)
-const Vector = zmath.Vec;   // (u_x, u_y, u_z, length) where ux^2 + uy^2 + uz^2 = 1
-
 
 pub fn Surface(
     comptime V: type, // vertex type
@@ -55,8 +52,8 @@ pub fn Surface(
         chi: i64,
         genus: i64,
 
-        positions: *[]Position,
-        vectors: *[]Vector,
+        positions: *[]f32,
+        vectors: *[]f32,
 
         vertices: *[]V,
         edges: *[]E,
@@ -80,8 +77,8 @@ pub fn Surface(
                 .n_faces = n_faces,
                 .chi = chi,
                 .genus = genus,
-                .positions = &(allocator.alloc(Position, @intCast(u32, n_vertices + n_edges + n_faces)) catch undefined),
-                .vectors = &(allocator.alloc(Vector, @intCast(u32, 2 * n_edges + n_faces)) catch undefined),
+                .positions = &(allocator.alloc(f32, @intCast(u32, 4 * (n_vertices + n_edges + n_faces))) catch undefined),
+                .vectors = &(allocator.alloc(f32, @intCast(u32, 4 * (2 * n_edges + n_faces))) catch undefined),
                 .vertices = &(allocator.alloc(V, @intCast(u32, n_vertices)) catch undefined),
                 .edges = &(allocator.alloc(E, @intCast(u32, n_edges)) catch undefined),
                 .faces = &(allocator.alloc(F, @intCast(u32, n_faces)) catch undefined),
@@ -161,8 +158,33 @@ export fn surface(n_vertices: i64, n_edges: i64, n_faces: i64) u64 {
     return registry.items.len - 1;
 }
 
+export fn vertice(sid: u32, idx: u32, x: f64, y: f64, z: f64) i64 {
+    if (idx < 0) return -1;
+
+    const uc = registry.items[@intCast(u32, sid)];
+    const sfc = uc.base;
+    if (idx > sfc.n_vertices - 1) return -1;
+
+    const v = zmath.f32x4(@floatCast(f32, x), @floatCast(f32, y), @floatCast(f32, z), 0);
+    zmath.store(sfc.positions.*[@intCast(u32, idx)..], v, 4);
+    return 1;
+}
+
 test "mesh construction" {
-    testing.except(surface(10, 10, 10) == 0);
-    testing.except(surface(10, 10, 10) == 1);
-    testing.except(surface(10, 10, 10) == 2);
+    try testing.expectEqual(surface(4, 6, 4), 0);
+    try testing.expectEqual(surface(8, 12, 6), 1);
+    try testing.expectEqual(surface(6, 12, 8), 2);
+    try testing.expectEqual(surface(20, 30, 12), 3);
+    try testing.expectEqual(surface(12, 30, 20), 4);
+}
+
+test "vertice access" {
+    try testing.expectEqual(vertice(0, 0, 0.0, 0.0, 0.0), 1);
+    try testing.expectEqual(vertice(0, 0, 1.0, 0.0, 0.0), 1);
+    try testing.expectEqual(vertice(0, 0, 0.0, 1.0, 0.0), 1);
+    try testing.expectEqual(vertice(0, 0, 0.0, 0.0, 1.0), 1);
+    try testing.expectEqual(vertice(0, 0, 1.0, 1.0, 0.0), 1);
+    try testing.expectEqual(vertice(0, 0, 1.0, 0.0, 1.0), 1);
+    try testing.expectEqual(vertice(0, 0, 0.0, 1.0, 1.0), 1);
+    try testing.expectEqual(vertice(0, 0, 1.0, 1.0, 1.0), 1);
 }
