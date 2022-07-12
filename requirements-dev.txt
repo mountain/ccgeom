@@ -1,0 +1,5 @@
+-r requirements.txt
+-r requirements-bld.txt
+
+ipython
+
