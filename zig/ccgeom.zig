@@ -47,29 +47,29 @@ pub fn Surface(
     return struct{
         alloc: Allocator,
 
-        n_vertices: i64, n_edges: i64, n_faces: i64,
+        n_vertices: u32, n_edges: u32, n_faces: u32,
 
-        chi: i64,
-        genus: i64,
+        chi: i32,
+        genus: i32,
 
-        positions: *[]f32,
-        vectors: *[]f32,
+        positions: []f32,
+        vectors: []f32,
 
-        vertices: *[]V,
-        edges: *[]E,
-        faces: *[]F,
-        halfedges: *[]H,
+        vertices: []V,
+        edges: []E,
+        faces: []F,
+        halfedges: []H,
 
         const Self = @This();
 
         /// Create a Surface instance which will use a specified allocator.
-        pub fn init(alloc: Allocator, n_vertices: i64, n_edges: i64, n_faces: i64) Self {
+        pub fn init(alloc: Allocator, n_vertices: u32, n_edges: u32, n_faces: u32) Self {
             assert(n_vertices > 0);
             assert(n_edges > 0);
             assert(n_faces > 0);
-            var chi: i64 = n_vertices - n_edges + n_faces;
+            var chi: i32 = @intCast(i32, n_vertices) - @intCast(i32, n_edges) + @intCast(i32, n_faces);
             assert(@divTrunc(chi, 2) * 2 == chi);
-            var genus: i64 = 1 - @divTrunc(chi, 2);
+            var genus: i32 = 1 - @divTrunc(chi, 2);
             return .{
                 .alloc = alloc,
                 .n_vertices = n_vertices,
@@ -77,39 +77,39 @@ pub fn Surface(
                 .n_faces = n_faces,
                 .chi = chi,
                 .genus = genus,
-                .positions = &(allocator.alloc(f32, @intCast(u32, 4 * (n_vertices + n_edges + n_faces))) catch undefined),
-                .vectors = &(allocator.alloc(f32, @intCast(u32, 4 * (2 * n_edges + n_faces))) catch undefined),
-                .vertices = &(allocator.alloc(V, @intCast(u32, n_vertices)) catch undefined),
-                .edges = &(allocator.alloc(E, @intCast(u32, n_edges)) catch undefined),
-                .faces = &(allocator.alloc(F, @intCast(u32, n_faces)) catch undefined),
-                .halfedges = &(allocator.alloc(H, @intCast(u32, 2 * n_edges)) catch undefined),
+                .positions = (allocator.alloc(f32, @intCast(u32, 4 * (n_vertices + n_edges + n_faces))) catch undefined),
+                .vectors = (allocator.alloc(f32, @intCast(u32, 4 * (2 * n_edges + n_faces))) catch undefined),
+                .vertices = (allocator.alloc(V, @intCast(u32, n_vertices)) catch undefined),
+                .edges = (allocator.alloc(E, @intCast(u32, n_edges)) catch undefined),
+                .faces = (allocator.alloc(F, @intCast(u32, n_faces)) catch undefined),
+                .halfedges = (allocator.alloc(H, @intCast(u32, 2 * n_edges)) catch undefined),
             };
         }
 
         /// Frees the backing allocation and leaves the mesh in an undefined state.
         pub fn deinit(self: *Self) void {
             if(self.positions != undefined) {
-                self.alloc.free(self.positions.*);
+                self.alloc.free(self.positions);
                 self.positions = undefined;
             }
             if(self.vectors != undefined) {
-                self.alloc.free(self.vectors.*);
+                self.alloc.free(self.vectors);
                 self.vectors = undefined;
             }
             if(self.vertices != undefined) {
-                self.alloc.free(self.vertices.*);
+                self.alloc.free(self.vertices);
                 self.vertices = undefined;
             }
             if(self.edges != undefined) {
-                self.alloc.free(self.edges.*);
+                self.alloc.free(self.edges);
                 self.edges = undefined;
             }
             if(self.faces != undefined) {
-                self.alloc.free(self.faces.*);
+                self.alloc.free(self.faces);
                 self.faces = undefined;
             }
             if(self.halfedges != undefined) {
-                self.alloc.free(self.halfedges.*);
+                self.alloc.free(self.halfedges);
                 self.halfedges = undefined;
             }
             self.* = undefined;
@@ -151,22 +151,24 @@ const SimpleUniversalCovering = UniversalCovering(SimpleSurface);
 
 var registry = ArrayList(SimpleUniversalCovering).init(allocator);
 
-export fn surface(n_vertices: i64, n_edges: i64, n_faces: i64) u64 {
+export fn surface(n_vertices: u32, n_edges: u32, n_faces: u32) u32 {
     var s = SimpleSurface.init(allocator, n_vertices, n_edges, n_faces);
     var uc = SimpleUniversalCovering.init(allocator, s);
     registry.append(uc) catch {};
-    return registry.items.len - 1;
+    return  @intCast(u32, registry.items.len - 1);
 }
 
-export fn vertice(sid: u32, idx: u32, x: f64, y: f64, z: f64) i64 {
-    if (idx < 0) return -1;
-
+export fn vertice(sid: u32, idx: u32, x: f64, y: f64, z: f64) i32 {
     const uc = registry.items[@intCast(u32, sid)];
     const sfc = uc.base;
     if (idx > sfc.n_vertices - 1) return -1;
 
-    const v = zmath.f32x4(@floatCast(f32, x), @floatCast(f32, y), @floatCast(f32, z), 0);
-    zmath.store(sfc.positions.*[@intCast(u32, idx)..], v, 4);
+    var a: f32 = @floatCast(f32, x);
+    var b: f32 = @floatCast(f32, y);
+    var c: f32 = @floatCast(f32, z);
+    var pos: usize = @intCast(u32, 4 * idx);
+    zmath.store(sfc.positions[pos..], zmath.loadArr3([3]f32{a, b, c}), 4);
+
     return 1;
 }
 
