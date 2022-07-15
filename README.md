@@ -1,10 +1,10 @@
-# aegpy
+# xyz
 
 Install
 --------
 
 ```bash
-pip install aegpy
+pip install xyz
 ```
 
 How to use

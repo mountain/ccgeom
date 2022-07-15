@@ -1,192 +1,93 @@
 const std = @import("std");
-const zmath = @import("zmath.zig");
+const bld = @import("builder.zig");
+
+/// Conceptualy, we manage a lot of surfaces here.
+/// But in the implementation, we manage many universal covering spaces (USCs) instead.
+/// Each USC is collection of a shared mesh, a base surface in Euclidean space R^3,
+/// and many tilling cells in a Hyperbolic plane(H^2) which is described by the upper-half plane model.
 
 const debug = std.debug;
 const assert = debug.assert;
 const testing = std.testing;
-const mem = std.mem;
-const Allocator = mem.Allocator;
-
-const StringArrayHashMap = std.array_hash_map.StringArrayHashMap;
-const ArrayList = std.ArrayList;
 
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
-
-
-const HalfEdge = struct {
-    next: *HalfEdge,
-    prev: *HalfEdge,
-    source: *Vertex,
-    target: *Vertex,
-    edge: *Edge,
-    face: *Face,
-};
-
-const Vertex = struct {
-    halfedge_1st: *HalfEdge,
-};
-
-const Edge = struct {
-    halfedge_1st: *HalfEdge,
-    halfedge_2nd: *HalfEdge,
-};
-
-const Face = struct {
-    halfedge_1st: *HalfEdge,
-};
-
-
-pub fn Surface(
-    comptime V: type, // vertex type
-    comptime E: type, // edge type
-    comptime F: type, // face type
-    comptime H: type, // halfedge type
-) type {
-    return struct{
-        alloc: Allocator,
-
-        n_vertices: u32, n_edges: u32, n_faces: u32,
-
-        chi: i32,
-        genus: i32,
-
-        positions: []f32,
-        vectors: []f32,
-
-        vertices: []V,
-        edges: []E,
-        faces: []F,
-        halfedges: []H,
-
-        const Self = @This();
-
-        /// Create a Surface instance which will use a specified allocator.
-        pub fn init(alloc: Allocator, n_vertices: u32, n_edges: u32, n_faces: u32) Self {
-            assert(n_vertices > 0);
-            assert(n_edges > 0);
-            assert(n_faces > 0);
-            var chi: i32 = @intCast(i32, n_vertices) - @intCast(i32, n_edges) + @intCast(i32, n_faces);
-            assert(@divTrunc(chi, 2) * 2 == chi);
-            var genus: i32 = 1 - @divTrunc(chi, 2);
-            return .{
-                .alloc = alloc,
-                .n_vertices = n_vertices,
-                .n_edges = n_edges,
-                .n_faces = n_faces,
-                .chi = chi,
-                .genus = genus,
-                .positions = (allocator.alloc(f32, @intCast(u32, 4 * (n_vertices + n_edges + n_faces))) catch undefined),
-                .vectors = (allocator.alloc(f32, @intCast(u32, 4 * (2 * n_edges + n_faces))) catch undefined),
-                .vertices = (allocator.alloc(V, @intCast(u32, n_vertices)) catch undefined),
-                .edges = (allocator.alloc(E, @intCast(u32, n_edges)) catch undefined),
-                .faces = (allocator.alloc(F, @intCast(u32, n_faces)) catch undefined),
-                .halfedges = (allocator.alloc(H, @intCast(u32, 2 * n_edges)) catch undefined),
-            };
-        }
-
-        /// Frees the backing allocation and leaves the mesh in an undefined state.
-        pub fn deinit(self: *Self) void {
-            if(self.positions != undefined) {
-                self.alloc.free(self.positions);
-                self.positions = undefined;
-            }
-            if(self.vectors != undefined) {
-                self.alloc.free(self.vectors);
-                self.vectors = undefined;
-            }
-            if(self.vertices != undefined) {
-                self.alloc.free(self.vertices);
-                self.vertices = undefined;
-            }
-            if(self.edges != undefined) {
-                self.alloc.free(self.edges);
-                self.edges = undefined;
-            }
-            if(self.faces != undefined) {
-                self.alloc.free(self.faces);
-                self.faces = undefined;
-            }
-            if(self.halfedges != undefined) {
-                self.alloc.free(self.halfedges);
-                self.halfedges = undefined;
-            }
-            self.* = undefined;
-        }
-    };
+/// begin of a session to create a ucs and the related surface
+export fn begin() u32 {
+    return bld.begin();
 }
 
-pub fn UniversalCovering(
-    comptime S: type, // surface type
-) type {
-    return struct{
-        alloc: Allocator,
-        base: S,
-        covering: StringArrayHashMap(S),
+/// commit of the operations in the session to create a ucs and the related surface
+export fn commit() u32 {
+    return bld.commit();
+}
 
-        const Self = @This();
+/// commit of the operations in the session to create a ucs and the related surface
+export fn rollback() u32 {
+    return bld.rollback();
+}
 
-        /// Create an UniversalCovering instance which will use a specified allocator.
-        pub fn init(alloc: Allocator, base: S) Self {
-            return .{
-                .alloc = alloc,
-                .base = base,
-                .covering = StringArrayHashMap(S).init(alloc),
-            };
-        }
+export fn build_surface(n_vertices: u32, n_edges: u32, n_faces: u32) u32 {
+    return bld.surface(n_vertices, n_edges, n_faces);
+}
 
-        /// Frees the backing allocation and leaves the mesh in an undefined state.
-        pub fn deinit(self: *Self) void {
-            self.base.deinit();
-            self.covering.deinit();
-            self.* = undefined;
-        }
-    };
+export fn build_vertice(x: f64, y: f64, z: f64) u32 {
+    return bld.vertice(x, y, z);
+}
+
+export fn build_halfedge(source: u32, target: u32, prev: u32, next: u32) u32 {
+    return bld.halfedge(source, target, prev, next);
+}
+
+export fn build_edge(source: u32, target: u32) u32 {
+    return bld.edge(source, target);
+}
+
+export fn build_face3(vert1: u32, vert2: u32, vert3: u32) u32 {
+   return bld.face3(vert1, vert2, vert3);
+}
+
+export fn build_face4(vert1: u32, vert2: u32, vert3: u32, vert4: u32) u32 {
+   return bld.face4(vert1, vert2, vert3, vert4);
+}
+
+export fn build_face5(vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32) u32 {
+    return bld.face5(vert1, vert2, vert3, vert4, vert5);
+}
+
+export fn build_face6(vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32, vert6: u32) u32 {
+    return bld.face6(vert1, vert2, vert3, vert4, vert5, vert6);
+}
+
+export fn build_face7(vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32, vert6: u32, vert7: u32) u32 {
+    return bld.face7(vert1, vert2, vert3, vert4, vert5, vert6, vert7);
+}
+
+export fn build_face8(vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32, vert6: u32, vert7: u32, vert8: u32) u32 {
+    return bld.face8(vert1, vert2, vert3, vert4, vert5, vert6, vert7, vert8);
+}
+
+export fn build_face9(vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32, vert6: u32, vert7: u32, vert8: u32, vert9: u32) u32 {
+    return bld.face9(vert1, vert2, vert3, vert4, vert5, vert6, vert7, vert8, vert9);
+}
+
+export fn build_face(num: u32, vert1: u32, vert2: u32, vert3: u32, vert4: u32, vert5: u32,
+                         vert6: u32, vert7: u32, vert8: u32, vert9: u32, vert10: u32, vert11: u32, vert12: u32) u32 {
+    return bld.face(num, vert1, vert2, vert3, vert4, vert5, vert6, vert7, vert8, vert9, vert10, vert11, vert12);
+}
+
+test "tetrahedron construction" {
+    try testing.expectEqual(begin(), 1);
+    try testing.expectEqual(build_surface(4, 6, 4), 1);
+    try testing.expectEqual(build_vertice(1.0, 0.0, -0.707106), 1);
+    try testing.expectEqual(build_vertice(-1.0, 0.0, -0.707106), 2);
+    try testing.expectEqual(build_vertice(0.0, 1.0, 0.707106), 3);
+    try testing.expectEqual(build_vertice(0.0, -1.0, 0.707106), 4);
+    try testing.expectEqual(build_face3(1, 2, 3), 1);
+    try testing.expectEqual(build_face3(1, 3, 4), 2);
+    try testing.expectEqual(build_face3(1, 4, 2), 3);
+    try testing.expectEqual(build_face3(2, 3, 4), 4);
+    try testing.expectEqual(commit(), 1);
 }
 
 
-const SimpleSurface = Surface(Vertex, Edge, Face, HalfEdge);
-const SimpleUniversalCovering = UniversalCovering(SimpleSurface);
 
-var registry = ArrayList(SimpleUniversalCovering).init(allocator);
-
-export fn surface(n_vertices: u32, n_edges: u32, n_faces: u32) u32 {
-    var s = SimpleSurface.init(allocator, n_vertices, n_edges, n_faces);
-    var uc = SimpleUniversalCovering.init(allocator, s);
-    registry.append(uc) catch {};
-    return  @intCast(u32, registry.items.len - 1);
-}
-
-export fn vertice(sid: u32, idx: u32, x: f64, y: f64, z: f64) i32 {
-    const uc = registry.items[@intCast(u32, sid)];
-    const sfc = uc.base;
-    if (idx > sfc.n_vertices - 1) return -1;
-
-    var a: f32 = @floatCast(f32, x);
-    var b: f32 = @floatCast(f32, y);
-    var c: f32 = @floatCast(f32, z);
-    var pos: usize = @intCast(u32, 4 * idx);
-    zmath.store(sfc.positions[pos..], zmath.loadArr3([3]f32{a, b, c}), 4);
-
-    return 1;
-}
-
-test "mesh construction" {
-    try testing.expectEqual(surface(4, 6, 4), 0);
-    try testing.expectEqual(surface(8, 12, 6), 1);
-    try testing.expectEqual(surface(6, 12, 8), 2);
-    try testing.expectEqual(surface(20, 30, 12), 3);
-    try testing.expectEqual(surface(12, 30, 20), 4);
-}
-
-test "vertice access" {
-    try testing.expectEqual(vertice(0, 0, 0.0, 0.0, 0.0), 1);
-    try testing.expectEqual(vertice(0, 0, 1.0, 0.0, 0.0), 1);
-    try testing.expectEqual(vertice(0, 0, 0.0, 1.0, 0.0), 1);
-    try testing.expectEqual(vertice(0, 0, 0.0, 0.0, 1.0), 1);
-    try testing.expectEqual(vertice(0, 0, 1.0, 1.0, 0.0), 1);
-    try testing.expectEqual(vertice(0, 0, 1.0, 0.0, 1.0), 1);
-    try testing.expectEqual(vertice(0, 0, 0.0, 1.0, 1.0), 1);
-    try testing.expectEqual(vertice(0, 0, 1.0, 1.0, 1.0), 1);
-}
